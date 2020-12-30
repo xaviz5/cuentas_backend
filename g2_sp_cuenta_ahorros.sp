@@ -1,6 +1,5 @@
-USE cobis 
+USE cobis
 GO
-
 IF OBJECT_ID ('dbo.g2_sp_cuenta_ahorros') IS NOT NULL
 	DROP PROCEDURE dbo.g2_sp_cuenta_ahorros
 GO
@@ -27,29 +26,49 @@ CREATE PROCEDURE g2_sp_cuenta_ahorros
    	@i_saldo				DECIMAL(12,2)	= 0
 AS
 
-declare @w_numeroDesde FLOAT = 1000000000 ;
-declare @w_numeroHasta FLOAT = 9999999999 ;
-DECLARE @w_identificador VARCHAR(10)
-DECLARE @w_valor FLOAT
-
-IF @i_operacion='I'
-BEGIN
-	SELECT @w_valor = (@w_numeroHasta - @w_numeroDesde) * RAND() + @w_numeroDesde
+	declare @w_numeroDesde FLOAT = 1000000000 ;
+	declare @w_numeroHasta FLOAT = 9999999999 ;
+	DECLARE @w_identificador VARCHAR(10)
+	DECLARE @w_valor FLOAT
+	DECLARE @w_error INT=0
 	
-	WHILE EXISTS (SELECT ca_banco FROM g2_cuenta_ahorros WHERE ca_banco = @w_valor)
+	IF @i_operacion='I'
 	BEGIN
-		SELECT @w_valor = ROUND(((9999999999 - 1000000000) * RAND() + 1000000000), 0)
+		IF (SELECT COUNT(*) FROM g2_cuenta_ahorros WHERE ca_cliente = @i_cliente)=0
+   		BEGIN
+			SELECT @w_valor = (@w_numeroHasta - @w_numeroDesde) * RAND() + @w_numeroDesde
+			
+			WHILE EXISTS (SELECT ca_banco FROM g2_cuenta_ahorros WHERE ca_banco = @w_valor)
+			BEGIN
+				SELECT @w_valor = ROUND(((9999999999 - 1000000000) * RAND() + 1000000000), 0)
+			END
+			
+			SELECT @w_identificador = CAST(CAST(@w_valor AS BIGINT) AS VARCHAR(10))
+		
+			INSERT INTO g2_cuenta_ahorros
+				(ca_banco,			ca_fecha_creacion,	ca_fecha_modificacion,	ca_cliente,ca_saldo)
+			VALUES 
+				(@w_identificador,	getdate(),			getdate(),				@i_cliente,@i_saldo)
+		END
+   		ELSE 
+   		BEGIN
+		
+			SELECT @w_error=0713
+		
+			exec cobis..sp_cerror
+         
+         	@t_debug = 'n',
+         	@t_file  = null,
+         	@t_from  = 'g2_sp_cuenta_ahorros',
+         	@i_num   = @w_error
+         
+         	return @w_error
+         
+        END
 	END
 	
-	SELECT @w_identificador = CAST(CAST(@w_valor AS BIGINT) AS VARCHAR(10))
-
-	INSERT INTO g2_cuenta_ahorros
-		(ca_banco,			ca_fecha_creacion,	ca_fecha_modificacion,	ca_cliente,ca_saldo)
-	VALUES 
-		(@w_identificador,	getdate(),			getdate(),				@i_cliente,@i_saldo)
+	RETURN 0
 	
-END
-
-RETURN 0
+	
 GO
 

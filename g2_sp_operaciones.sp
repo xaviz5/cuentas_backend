@@ -1,6 +1,5 @@
-USE cobis 
+USE cobis
 GO
-
 IF OBJECT_ID ('dbo.g2_sp_operaciones') IS NOT NULL
 	DROP PROCEDURE dbo.g2_sp_operaciones
 GO
@@ -33,7 +32,8 @@ AS
 			@w_error INT=0,
 			@cod_cliente INT=0,
 			@saldo_anterior DECIMAL(12,2),
-			@saldo_destino  DECIMAL(12,2)
+			@saldo_destino  DECIMAL(12,2),
+			@w_id_transaccion INT=0
 			
 	--Recuperar Informacion de la Cuenta
 	IF @i_operacion = 'S'
@@ -54,6 +54,7 @@ AS
 			       'A' AS tipo_cuenta
 			       
 		 	FROM g2_cuenta_ahorros INNER JOIN cliente_taller ON cl_id=@cod_cliente
+		 	WHERE ca_banco=@i_nro_cuenta
 		 	
 		END
 
@@ -71,7 +72,7 @@ AS
 			       'C' AS tipo_cuenta
 			       
 		 	FROM g2_cuenta_corriente INNER JOIN cliente_taller ON cl_id=@cod_cliente	 	
-		 		
+		 	WHERE cc_banco=@i_nro_cuenta	
 			
 			
 		END
@@ -113,6 +114,14 @@ AS
 				ca_saldo			 =(@saldo_anterior+@i_cantidad)
 				
 			WHERE ca_banco = @i_nro_cuenta
+			--Insercion de transaccion del deposito
+			SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+			SELECT @w_id_transaccion = @w_id_transaccion + 1
+			
+			INSERT INTO dbo.g2_transaccion
+				(tr_id,					tr_fecha,		tr_cuenta,			tr_tipo_tr, 	tr_tipo_cuenta)
+			VALUES 
+				(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta,		'D',			@i_tipo_cuenta)
 		
 		END
 		
@@ -129,6 +138,14 @@ AS
 				cc_saldo			 =(@saldo_anterior+@i_cantidad)
 				
 			WHERE cc_banco = @i_nro_cuenta
+			--Insercion de transaccion del deposito
+			SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+			SELECT @w_id_transaccion = @w_id_transaccion + 1
+			
+			INSERT INTO dbo.g2_transaccion
+				(tr_id,					tr_fecha,		tr_cuenta,			tr_tipo_tr, 	tr_tipo_cuenta)
+			VALUES 
+				(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta,		'D',			@i_tipo_cuenta)
 
 		END
 	
@@ -149,7 +166,15 @@ AS
 			SET ca_fecha_modificacion=getdate(),
 				ca_saldo			 =(@saldo_anterior-@i_cantidad)
 				
-			WHERE ca_banco = @i_nro_cuenta		
+			WHERE ca_banco = @i_nro_cuenta	
+			--Insercion de transaccion del retiro
+			SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+			SELECT @w_id_transaccion = @w_id_transaccion + 1
+			
+			INSERT INTO dbo.g2_transaccion
+				(tr_id,					tr_fecha,		tr_cuenta,			tr_tipo_tr, 	tr_tipo_cuenta)
+			VALUES 
+				(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta,		'R',			@i_tipo_cuenta)	
 		
 		END
 		
@@ -163,7 +188,15 @@ AS
 			SET cc_fecha_modificacion=getdate(),
 				cc_saldo			 =(@saldo_anterior-@i_cantidad)
 				
-			WHERE cc_banco = @i_nro_cuenta			 
+			WHERE cc_banco = @i_nro_cuenta	
+			--Insercion de transaccion del retiro
+			SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+			SELECT @w_id_transaccion = @w_id_transaccion + 1
+			
+			INSERT INTO dbo.g2_transaccion
+				(tr_id,					tr_fecha,		tr_cuenta,			tr_tipo_tr, 	tr_tipo_cuenta)
+			VALUES 
+				(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta,		'R',			@i_tipo_cuenta)		 
 		
 		END
 	
@@ -189,6 +222,22 @@ AS
 				ca_fecha_modificacion = getdate(),
 				ca_saldo			  = (@saldo_destino+@i_cantidad)
 				WHERE ca_banco=@i_nro_cuenta_destino
+				--Insercion de transaccion para el que transfiere
+				SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+				SELECT @w_id_transaccion = @w_id_transaccion + 1
+				
+				INSERT INTO dbo.g2_transaccion
+					(tr_id,					tr_fecha,		tr_cuenta,			tr_tipo_tr, 	tr_tipo_cuenta)
+				VALUES 
+					(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta,		'R',			@i_tipo_cuenta)
+				--Insercion de transaccion para el que recive la tranferencia
+				SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+				SELECT @w_id_transaccion = @w_id_transaccion + 1
+				
+				INSERT INTO dbo.g2_transaccion
+					(tr_id,					tr_fecha,		tr_cuenta,					tr_tipo_tr, 	tr_tipo_cuenta)
+				VALUES 
+					(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta_destino,		'D',			@i_tipo_cuenta_destino)
 			
 			END
 			
@@ -202,6 +251,23 @@ AS
 				cc_fecha_modificacion = getdate(),
 				cc_saldo			  = (@saldo_destino+@i_cantidad)
 				WHERE cc_banco=@i_nro_cuenta_destino
+				
+				--Insercion de transaccion para el que transfiere
+				SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+				SELECT @w_id_transaccion = @w_id_transaccion + 1
+				
+				INSERT INTO dbo.g2_transaccion
+					(tr_id,					tr_fecha,		tr_cuenta,			tr_tipo_tr, 	tr_tipo_cuenta)
+				VALUES 
+					(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta,		'R',			@i_tipo_cuenta)
+				--Insercion de transaccion para el que recive la tranferencia
+				SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+				SELECT @w_id_transaccion = @w_id_transaccion + 1
+				
+				INSERT INTO dbo.g2_transaccion
+					(tr_id,					tr_fecha,		tr_cuenta,					tr_tipo_tr, 	tr_tipo_cuenta)
+				VALUES 
+					(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta_destino,		'D',			@i_tipo_cuenta_destino)
 				
 			
 			END
@@ -232,6 +298,23 @@ AS
 				ca_fecha_modificacion = getdate(),
 				ca_saldo			  = (@saldo_destino+@i_cantidad)
 				WHERE ca_banco=@i_nro_cuenta_destino
+				
+				--Insercion de transaccion para el que transfiere
+				SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+				SELECT @w_id_transaccion = @w_id_transaccion + 1
+				
+				INSERT INTO dbo.g2_transaccion
+					(tr_id,					tr_fecha,		tr_cuenta,			tr_tipo_tr, 	tr_tipo_cuenta)
+				VALUES 
+					(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta,		'R',			@i_tipo_cuenta)
+				--Insercion de transaccion para el que recive la tranferencia
+				SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+				SELECT @w_id_transaccion = @w_id_transaccion + 1
+				
+				INSERT INTO dbo.g2_transaccion
+					(tr_id,					tr_fecha,		tr_cuenta,					tr_tipo_tr, 	tr_tipo_cuenta)
+				VALUES 
+					(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta_destino,		'D',			@i_tipo_cuenta_destino)
 			
 			END
 			
@@ -246,6 +329,23 @@ AS
 				cc_saldo			  = (@saldo_destino+@i_cantidad)
 				WHERE cc_banco=@i_nro_cuenta_destino
 				
+				--Insercion de transaccion para el que transfiere
+				SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+				SELECT @w_id_transaccion = @w_id_transaccion + 1
+				
+				INSERT INTO dbo.g2_transaccion
+					(tr_id,					tr_fecha,		tr_cuenta,			tr_tipo_tr, 	tr_tipo_cuenta)
+				VALUES 
+					(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta,		'R',			@i_tipo_cuenta)
+				--Insercion de transaccion para el que recive la tranferencia
+				SELECT @w_id_transaccion = ISNULL((SELECT max(tr_id) FROM g2_transaccion),0)
+				SELECT @w_id_transaccion = @w_id_transaccion + 1
+				
+				INSERT INTO dbo.g2_transaccion
+					(tr_id,					tr_fecha,		tr_cuenta,					tr_tipo_tr, 	tr_tipo_cuenta)
+				VALUES 
+					(@w_id_transaccion,		GETDATE(),		@i_nro_cuenta_destino,		'D',			@i_tipo_cuenta_destino)
+				
 			
 			END
 			
@@ -259,5 +359,25 @@ AS
 	
 	END
 	
+	IF @i_operacion = 'Q'
+	BEGIN
+		PRINT 'Consulta todas las tansacciones de una cuenta'
+		SELECT 	tr_id,
+				tr_fecha,
+				tr_cuenta,
+				tr_tipo_tr,
+				tr_tipo_cuenta
+		FROM g2_transaccion
+		WHERE	tr_cuenta		= @i_nro_cuenta
+		ORDER BY tr_fecha DESC
+	END
+	
 	RETURN 0
 	
+
+
+
+
+
+GO
+

@@ -1,5 +1,5 @@
 USE cobis
-go
+GO
 IF OBJECT_ID ('dbo.g2_sp_cuenta_corriente') IS NOT NULL
 	DROP PROCEDURE dbo.g2_sp_cuenta_corriente
 GO
@@ -24,6 +24,7 @@ CREATE PROCEDURE g2_sp_cuenta_corriente
 AS
    declare  @w_sp_name       varchar(14),
 			@w_cc_banco		 varchar(10),
+			@w_error INT=0,
 			@w_numero		 float,
 			@NumeroDesde	 float = 1000000000,
 			@NumeroHasta	 float = 9999999999
@@ -34,22 +35,42 @@ AS
 
    IF @i_operacion='I'
    BEGIN
-   		SELECT @w_numero = ROUND(((@NumeroHasta - @NumeroDesde) * RAND() + @NumeroDesde), 0)
+   		IF (SELECT COUNT(*) FROM g2_cuenta_corriente WHERE cc_cliente = @i_cc_cliente)=0
+   		BEGIN 
+   			SELECT @w_numero = ROUND(((@NumeroHasta - @NumeroDesde) * RAND() + @NumeroDesde), 0)
 
-	    WHILE EXISTS (SELECT * FROM g2_cuenta_corriente WHERE cc_banco = @w_numero)
-	    Begin
-			SELECT @w_numero = ROUND(((@NumeroHasta - @NumeroDesde) * RAND() + @NumeroDesde), 0)
-	    END
-	
-	    SELECT @w_cc_banco = CAST(CAST(@w_numero AS BIGINT) AS VARCHAR(10))
-   		
-    	INSERT INTO g2_cuenta_corriente 
-    		(cc_banco, 		cc_fecha_creacion,		cc_fecha_modificacion,  cc_cliente,		cc_saldo)
-    	VALUES 
-    		(@w_cc_banco,	GETDATE(),				GETDATE(),				@i_cc_cliente,	@i_cc_saldo)
+		    WHILE EXISTS (SELECT * FROM g2_cuenta_corriente WHERE cc_banco = @w_numero)
+		    Begin
+				SELECT @w_numero = ROUND(((@NumeroHasta - @NumeroDesde) * RAND() + @NumeroDesde), 0)
+		    END
+		
+		    SELECT @w_cc_banco = CAST(CAST(@w_numero AS BIGINT) AS VARCHAR(10))
+	   		
+	    	INSERT INTO g2_cuenta_corriente 
+	    		(cc_banco, 		cc_fecha_creacion,		cc_fecha_modificacion,  cc_cliente,		cc_saldo)
+	    	VALUES 
+	    		(@w_cc_banco,	GETDATE(),				GETDATE(),				@i_cc_cliente,	@i_cc_saldo)
+   		END
+   		ELSE 
+   		BEGIN
+		
+			SELECT @w_error=0713
+		
+			exec cobis..sp_cerror
+         
+         	@t_debug = 'n',
+         	@t_file  = null,
+         	@t_from  = 'g2_sp_cuenta_corriente',
+         	@i_num   = @w_error
+         
+         	return @w_error
+         
+        END
    END
     
    return 0
 
 
+
 GO
+
